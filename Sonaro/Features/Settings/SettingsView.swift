@@ -27,10 +27,6 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .navigationTitle("设置")
-        .safeAreaInset(edge: .bottom) {
-            // 为 mini player 预留空间
-            Color.clear.frame(height: 100)
-        }
         .confirmationDialog("确定清除所有缓存吗？", isPresented: $showClearCacheConfirm, titleVisibility: .visible) {
             Button("清除", role: .destructive) { Task { await clearCache() } }
             Button("取消", role: .cancel) {}

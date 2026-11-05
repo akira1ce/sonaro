@@ -18,6 +18,9 @@ struct MainShell: View {
 
     /// Fraction of the main area's width the dock spans.
     private let dockWidthFraction: CGFloat = 0.8
+    /// Space the floating dock occupies at the window bottom (capsule + margins),
+    /// reserved as a safe-area inset so no page's scroll content hides behind it.
+    private static let dockInset: CGFloat = 96
 
     var body: some View {
         sidebarLayout
@@ -56,6 +59,13 @@ struct MainShell: View {
     // MARK: Window-level layers
 
     private static let shellSpace = "shell"
+
+    /// Bottom spacer matching the floating dock's footprint, so page content
+    /// scrolls clear of it.
+    private var dockSpacer: some View {
+        Color.clear
+            .frame(height: player.currentSong == nil ? 0 : Self.dockInset)
+    }
 
     /// The floating mini player: centered on the main area, 80% of its width.
     /// Positioned by hand from `detailFrame` rather than by an alignment guide,
@@ -127,9 +137,19 @@ struct MainShell: View {
         } detail: {
             NavigationStack {
                 screen(for: selection)
-                    .navigationDestination(for: Playlist.self) { PlaylistDetailView(playlist: $0) }
-                    .navigationDestination(for: Artist.self) { ArtistDetailView(artist: $0) }
+                    // Pushed pages don't inherit the stack's bottom inset, so
+                    // they carry the dock spacer themselves.
+                    .navigationDestination(for: Playlist.self) {
+                        PlaylistDetailView(playlist: $0)
+                            .safeAreaInset(edge: .bottom, spacing: 0) { dockSpacer }
+                    }
+                    .navigationDestination(for: Artist.self) {
+                        ArtistDetailView(artist: $0)
+                            .safeAreaInset(edge: .bottom, spacing: 0) { dockSpacer }
+                    }
             }
+                // Reserve the dock's footprint for the stack's root pages.
+                .safeAreaInset(edge: .bottom, spacing: 0) { dockSpacer }
                 // Report the main area's geometry up to the window-level layers.
                 // They can't ask the split view how wide the sidebar is, so the
                 // column measures itself instead.

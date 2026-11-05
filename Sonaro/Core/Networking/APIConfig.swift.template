@@ -1,0 +1,6 @@
+import Foundation
+
+/// The built-in MusicApiEnhanced backend.
+enum APIConfig {
+    static let baseURL = "http://127.0.0.1:30000"
+}

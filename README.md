@@ -64,7 +64,13 @@ open Sonaro.xcodeproj
 
 Choose the **Sonaro** scheme and **My Mac**, then press ⌘R. The project uses synchronized folder groups, so new source files on disk join the target automatically.
 
-> `Sonaro.xcodeproj/` is currently in `.gitignore` and is not published with the repository. After cloning, prepare the Xcode project yourself, or develop in an existing local project.
+> [`APIConfig.swift`](Sonaro/Core/Networking/APIConfig.swift) is git-ignored so every environment keeps its own backend address. After cloning, create it from [`APIConfig.swift.template`](Sonaro/Core/Networking/APIConfig.swift.template):
+>
+> ```bash
+> cp Sonaro/Core/Networking/APIConfig.swift.template Sonaro/Core/Networking/APIConfig.swift
+> ```
+>
+> Then set `baseURL` to your NeteaseCloudMusicApiEnhanced instance.
 
 ### Command-line build and tests
 
@@ -92,7 +98,7 @@ Builds a universal Release app and packages it with a drag-to-install layout. Th
 
 Sonaro relies on a third-party, unofficial [NeteaseCloudMusicApiEnhanced](https://github.com/neteasecloudmusicapienhanced/api-enhanced) service (not affiliated with NetEase Cloud Music):
 
-- The API address is a built-in constant in [`APIConfig.swift`](Sonaro/Core/Networking/APIConfig.swift). To use your own instance, change `baseURL` and rebuild; there is no in-app server setting.
+- The API address is a built-in constant in [`APIConfig.swift`](Sonaro/Core/Networking/APIConfig.swift), which is git-ignored. Create it from [`APIConfig.swift.template`](Sonaro/Core/Networking/APIConfig.swift.template) (see [Build & Run](#build--run)), change `baseURL` to your own instance, and rebuild; there is no in-app server setting.
 - Plain HTTP is allowed through an ATS exception (`NSAllowsArbitraryLoads`); HTTPS instances work as well.
 - The login cookie is sent as a query parameter with each request. A 301 response means the session has expired; if that happens during cold-launch validation, the app returns to the QR login screen.
 - See [`api-doc.md`](api-doc.md) for the full API reference.

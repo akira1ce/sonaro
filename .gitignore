@@ -1,5 +1,5 @@
 .codegraph
-Sonaro.xcodeproj/
+xcuserdata/
 .DS_Store
 build/
 dist/

@@ -64,7 +64,13 @@ open Sonaro.xcodeproj
 
 选择 **Sonaro** scheme 和 **My Mac**，⌘R 运行。工程使用 synchronized folder groups，磁盘上新增的源文件会自动进入 target。
 
-> `Sonaro.xcodeproj/` 目前在 `.gitignore` 中，不随仓库发布；克隆后需要自行准备 Xcode 工程文件，或直接在本机已有工程中开发。
+> [`APIConfig.swift`](Sonaro/Core/Networking/APIConfig.swift) 不纳入版本控制，方便每个环境保留自己的后端地址。克隆后请从 [`APIConfig.swift.template`](Sonaro/Core/Networking/APIConfig.swift.template) 创建：
+>
+> ```bash
+> cp Sonaro/Core/Networking/APIConfig.swift.template Sonaro/Core/Networking/APIConfig.swift
+> ```
+>
+> 然后修改 `baseURL` 指向你自己的 NeteaseCloudMusicApiEnhanced 实例。
 
 ### 命令行构建与测试
 
@@ -92,7 +98,7 @@ brew install create-dmg
 
 Sonaro 依赖第三方、非官方的 [NeteaseCloudMusicApiEnhanced](https://github.com/neteasecloudmusicapienhanced/api-enhanced) 服务（与网易云音乐官方无关）：
 
-- API 地址是内置常量，位于 [`APIConfig.swift`](Sonaro/Core/Networking/APIConfig.swift)。要使用自己的实例，修改 `baseURL` 后重新编译即可；应用内没有服务器设置项。
+- API 地址是内置常量，位于 [`APIConfig.swift`](Sonaro/Core/Networking/APIConfig.swift)，该文件不纳入版本控制；请从 [`APIConfig.swift.template`](Sonaro/Core/Networking/APIConfig.swift.template) 创建（见[构建与运行](#构建与运行)），修改 `baseURL` 指向自己的实例后重新编译即可；应用内没有服务器设置项。
 - HTTP 明文访问通过 ATS 例外放行（`NSAllowsArbitraryLoads`），换成 HTTPS 实例同样可用。
 - 登录态以 `cookie` 查询参数随请求发送；后端返回 301 表示会话已过期，冷启动校验到失效时会回到扫码页。
 - 完整接口说明见 [`api-doc.md`](api-doc.md)。

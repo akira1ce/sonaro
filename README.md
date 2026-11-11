@@ -42,7 +42,7 @@ SwiftUI · AVPlayer · NeteaseCloudMusicApiEnhanced backend
 - 🏠 **Recommendations** — daily playlists, charts, editor-picked playlists, and popular artists across four horizontal shelves, with skeleton loading and page-level retry
 - 📅 **Daily Recommendations** — a fresh set of tracks every day, with a cover header, Play All, and the track list
 - 🕘 **Recently Played** — switch the play history between Last week and All time
-- 🔍 **Search** — song search with 350 ms debounce, skeletons, infinite scrolling, and empty/error states
+- 🔍 **Search** — song search with 600 ms debounce, duplicate submission suppression, skeletons, infinite scrolling, and empty/error states
 - 💿 **Playlists & Artists** — playlist details (creator, description, play count, update time, Play All, subscribe/unsubscribe); artist pages (circular portrait, bio, hot tracks). Artist names in track rows link straight to the artist page
 - ❤️ **Likes** — hover actions in track lists and a heart in the player; optimistic updates roll back automatically if the request fails
 - 🎧 **Playback** — AVPlayer queue; sequential, repeat-one, shuffle, and repeat-all modes; five quality levels (Standard, Higher, Ex-High, Lossless, Hi-Res) applied to the next track; loading and failure states are visible

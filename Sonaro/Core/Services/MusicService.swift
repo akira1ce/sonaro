@@ -105,24 +105,14 @@ enum MusicService {
 
     /// - Parameter level: standard | higher | exhigh | lossless | hires ...
     static func songURL(id: Int, level: String = "standard") async throws -> URL {
-        // Upstream risk control intermittently answers HTTP 400 ("network
-        // environment risk") for one request, then succeeds — absorb the flake.
-        var attempt = 0
-        while true {
-            do {
-                try Task.checkCancellation()
-                let resp: SongURLResponse = try await APIClient.shared.get(
-                    "/song/url/v1", query: ["id": String(id), "level": level])
-                guard let raw = resp.data?.first(where: { $0.id == id })?.url ?? resp.data?.first?.url,
-                      !raw.isEmpty, let url = URL(string: raw.httpsUpgraded) else {
-                    throw APIError.noPlayableURL
-                }
-                return url
-            } catch APIError.http(400, _) where attempt < 2 {
-                attempt += 1
-                try? await Task.sleep(for: .milliseconds(400 * attempt))
-            }
+        try Task.checkCancellation()
+        let resp: SongURLResponse = try await APIClient.shared.get(
+            "/song/url/v1", query: ["id": String(id), "level": level])
+        guard let raw = resp.data?.first(where: { $0.id == id })?.url ?? resp.data?.first?.url,
+              !raw.isEmpty, let url = URL(string: raw.httpsUpgraded) else {
+            throw APIError.noPlayableURL
         }
+        return url
     }
 
     // MARK: 歌词  (GET /lyric)

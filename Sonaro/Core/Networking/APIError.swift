@@ -3,6 +3,7 @@ import Foundation
 enum APIError: LocalizedError {
     case invalidURL
     case transport(Error)
+    case deviceIdentity(Error)
     /// The backend answers `301 {"code":301,"msg":"需要登录"}` when the supplied
     /// cookie is invalid or expired — it is not a redirect.
     case sessionExpired
@@ -17,6 +18,7 @@ enum APIError: LocalizedError {
         switch self {
         case .invalidURL: return "接口地址无效"
         case .transport(let e): return "网络请求失败：\(e.localizedDescription)"
+        case .deviceIdentity(let e): return "设备身份不可用：\(e.localizedDescription)"
         case .sessionExpired: return "登录已过期，请重新登录"
         case .http(let code, let message):
             return message.map { "服务器返回错误（HTTP \(code)）：\($0)" }

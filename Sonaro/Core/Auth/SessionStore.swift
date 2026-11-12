@@ -29,7 +29,7 @@ final class SessionStore {
         }
     }
 
-    var isLoggedIn: Bool { !(cookie?.isEmpty ?? true) }
+    var isLoggedIn: Bool { SessionCookie.hasLoginCredential(cookie) }
 
     var cachedProfile: Profile? {
         get {

@@ -101,6 +101,7 @@ Sonaro 依赖第三方、非官方的 [NeteaseCloudMusicApiEnhanced](https://git
 - API 地址是内置常量，位于 [`APIConfig.swift`](Sonaro/Core/Networking/APIConfig.swift)，该文件不纳入版本控制；请从 [`APIConfig.swift.template`](Sonaro/Core/Networking/APIConfig.swift.template) 创建（见[构建与运行](#构建与运行)），修改 `baseURL` 指向自己的实例后重新编译即可；应用内没有服务器设置项。
 - HTTP 明文访问通过 ATS 例外放行（`NSAllowsArbitraryLoads`），换成 HTTPS 实例同样可用。
 - 登录态以 `cookie` 查询参数随请求发送；后端返回 301 表示会话已过期，冷启动校验到失效时会回到扫码页。
+- 本机设备 ID 单独保存在 Keychain，退出账号后仍保留。扫码前的请求只携带设备 ID，登录后的请求合并账号 Cookie 并统一使用同一个 `deviceId`；后端需支持读取 `cookie.deviceId`。
 - 完整接口说明见 [`api-doc.md`](api-doc.md)。
 
 > 登录 cookie 会随请求发送到所配置的后端。默认地址仅供演示，建议使用自己部署的实例并启用 HTTPS，不要连接不可信的服务。

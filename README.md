@@ -101,6 +101,7 @@ Sonaro relies on a third-party, unofficial [NeteaseCloudMusicApiEnhanced](https:
 - The API address is a built-in constant in [`APIConfig.swift`](Sonaro/Core/Networking/APIConfig.swift), which is git-ignored. Create it from [`APIConfig.swift.template`](Sonaro/Core/Networking/APIConfig.swift.template) (see [Build & Run](#build--run)), change `baseURL` to your own instance, and rebuild; there is no in-app server setting.
 - Plain HTTP is allowed through an ATS exception (`NSAllowsArbitraryLoads`); HTTPS instances work as well.
 - The login cookie is sent as a query parameter with each request. A 301 response means the session has expired; if that happens during cold-launch validation, the app returns to the QR login screen.
+- A local device ID is stored in a separate Keychain item and survives logout. Anonymous QR requests carry only this identity; authenticated requests merge the account cookie with the same `deviceId`. The backend must honor `cookie.deviceId`.
 - See [`api-doc.md`](api-doc.md) for the full API reference.
 
 > The login cookie is sent to whichever backend you configure. The default address is for demonstration only — use your own deployment over HTTPS and never connect to an untrusted server.

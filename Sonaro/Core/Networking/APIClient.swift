@@ -13,6 +13,11 @@ final class APIClient {
         cfg.requestCachePolicy = .reloadIgnoringLocalCacheData
         cfg.timeoutIntervalForRequest = 20
         cfg.waitsForConnectivity = true
+        // Identity and account cookies are explicitly composed as query items.
+        // Do not let an ambient URLSession cookie leak into anonymous QR calls.
+        cfg.httpShouldSetCookies = false
+        cfg.httpCookieAcceptPolicy = .never
+        cfg.httpCookieStorage = nil
         session = URLSession(configuration: cfg)
     }
 
@@ -22,7 +27,7 @@ final class APIClient {
     /// - Parameters:
     ///   - path: leading-slash path, e.g. `/recommend/songs`.
     ///   - query: extra query items.
-    ///   - authenticated: attach the stored login cookie.
+    ///   - authenticated: attach the account cookie; device identity is always included.
     ///   - freshness: append a timestamp so the backend's 2-minute cache is bypassed
     ///                (required for login polling and status checks).
     func data(_ path: String,
@@ -33,10 +38,16 @@ final class APIClient {
             throw APIError.invalidURL
         }
         var items = components.queryItems ?? []
-        for (k, v) in query { items.append(URLQueryItem(name: k, value: v)) }
-
-        if authenticated, let cookie = SessionStore.shared.cookie, !cookie.isEmpty {
+        for (k, v) in query.sorted(by: { $0.key < $1.key }) where k != "cookie" {
+            items.append(URLQueryItem(name: k, value: v))
+        }
+        let accountCookie = authenticated ? (query["cookie"] ?? SessionStore.shared.cookie) : nil
+        do {
+            let cookie = try DeviceIdentityStore.shared.cookie(accountCookie: accountCookie)
+            items.removeAll { $0.name == "cookie" }
             items.append(URLQueryItem(name: "cookie", value: cookie))
+        } catch {
+            throw APIError.deviceIdentity(error)
         }
         if freshness {
             items.append(URLQueryItem(name: "timestamp", value: String(Int(Date().timeIntervalSince1970 * 1000))))

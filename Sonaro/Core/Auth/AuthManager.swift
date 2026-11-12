@@ -169,6 +169,7 @@ final class AuthManager: ObservableObject {
                 await self.checkOnce(unikey: unikey)
                 let phase = self.qrPhase
                 if phase == .succeeded || phase == .expired { return }
+                if case .failed = phase { return }
             }
         }
     }
@@ -181,9 +182,11 @@ final class AuthManager: ObservableObject {
             case 801: qrPhase = .waiting
             case 802: qrPhase = .scanned
             case 803:
-                if let cookie = resp.cookie, !cookie.isEmpty {
-                    SessionStore.shared.cookie = cookie
+                guard let cookie = resp.cookie, SessionCookie.hasLoginCredential(cookie) else {
+                    qrPhase = .failed("登录未返回有效凭证，请重新扫码")
+                    return
                 }
+                SessionStore.shared.cookie = cookie
                 qrPhase = .succeeded
                 await finishLogin()
             case 800:

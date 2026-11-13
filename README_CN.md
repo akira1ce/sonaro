@@ -87,12 +87,11 @@ xcodebuild test -scheme Sonaro -destination 'platform=macOS'
 ### 打包 DMG
 
 ```bash
-brew install create-dmg
 ./build-dmg.sh
 # 输出：dist/Sonaro-<版本号>.dmg
 ```
 
-脚本构建 Universal Release 应用并生成带拖拽安装布局的 DMG。产物未签名，首次打开需右键 → 打开。
+脚本构建 Universal Release 应用，并用 `hdiutil` 生成带“应用程序”快捷方式的 DMG（不需要 create-dmg，也不会弹出 Finder 窗口）。应用会用本机的 Apple Development 证书签名（需在 Xcode 中登录与 `DEVELOPMENT_TEAM` 对应的账号），因此重装后钥匙串权限仍然有效、不会每次安装都要求输入登录密码；签名绑定本机，拷贝到其他设备后首次打开需右键 → 打开。找不到签名证书时脚本会直接报错退出，不会退回 ad-hoc 签名。
 
 ## 后端与配置
 

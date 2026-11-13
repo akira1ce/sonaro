@@ -87,12 +87,11 @@ xcodebuild test -scheme Sonaro -destination 'platform=macOS'
 ### Packaging a DMG
 
 ```bash
-brew install create-dmg
 ./build-dmg.sh
 # Output: dist/Sonaro-<version>.dmg
 ```
 
-Builds a universal Release app and packages it with a drag-to-install layout. The artifact is unsigned; on first launch, right-click the icon and choose **Open**.
+Builds a universal Release app and packages it into a DMG with an Applications shortcut using `hdiutil` — no create-dmg and no Finder automation. The app is signed with the local Apple Development identity (requires an Xcode account matching `DEVELOPMENT_TEAM`), so Keychain permissions survive reinstalls instead of prompting for your login password each time. The signature is machine-bound: on another Mac, right-click the icon and choose **Open** on first launch. If no signing identity is available the script fails instead of falling back to an ad-hoc signature.
 
 ## Backend & Configuration
 

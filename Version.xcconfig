@@ -1,4 +1,4 @@
 // Shared by the app and test targets in Debug and Release.
 // Update both values when preparing a release.
-MARKETING_VERSION = 2.1.2
-CURRENT_PROJECT_VERSION = 5
+MARKETING_VERSION = 2.2.0
+CURRENT_PROJECT_VERSION = 6

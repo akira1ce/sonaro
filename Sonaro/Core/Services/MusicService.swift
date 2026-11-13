@@ -132,9 +132,10 @@ enum MusicService {
 
     private struct PlaylistTracksResponse: Decodable { let songs: [Song]? }
 
-    static func playlistTracks(id: Int, limit: Int = 300) async throws -> [Song] {
+    static func playlistTracks(id: Int, limit: Int = 200, offset: Int = 0) async throws -> [Song] {
         let resp: PlaylistTracksResponse = try await APIClient.shared.get(
-            "/playlist/track/all", query: ["id": String(id), "limit": String(limit)])
+            "/playlist/track/all",
+            query: ["id": String(id), "limit": String(limit), "offset": String(offset)])
         return resp.songs ?? []
     }
 

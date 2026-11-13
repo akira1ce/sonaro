@@ -75,13 +75,10 @@ struct DailyView: View {
                 SongRow(
                     song: song,
                     isCurrent: isCurrent,
-                    isPlaying: isCurrent && player.isPlaying,
-                    showsAlbum: true,
-                    showsHoverActions: true,
                     onPlay: { player.play(vm.songs, startAt: index) }
                 )
                 if song.id != vm.songs.last?.id {
-                    Divider().padding(.leading, 60)
+                    Divider().padding(.leading, 68)
                 }
             }
         }
@@ -91,7 +88,7 @@ struct DailyView: View {
         VStack(spacing: 0) {
             ForEach(0..<6, id: \.self) { _ in
                 SongRowPlaceholder()
-                Divider().padding(.leading, 60)
+                Divider().padding(.leading, 68)
             }
         }
     }

@@ -69,13 +69,10 @@ struct RecentPlayedView: View {
                 SongRow(
                     song: song,
                     isCurrent: isCurrent,
-                    isPlaying: isCurrent && player.isPlaying,
-                    showsAlbum: true,
-                    showsHoverActions: true,
                     onPlay: { player.play(songs, startAt: index) }
                 )
                 if song.id != songs.last?.id {
-                    Divider().padding(.leading, 60)
+                    Divider().padding(.leading, 68)
                 }
             }
         }
@@ -85,7 +82,7 @@ struct RecentPlayedView: View {
         VStack(spacing: 0) {
             ForEach(0..<6, id: \.self) { _ in
                 SongRowPlaceholder()
-                Divider().padding(.leading, 60)
+                Divider().padding(.leading, 68)
             }
         }
     }

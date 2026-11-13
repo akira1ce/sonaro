@@ -1,79 +1,80 @@
 import SwiftUI
 
 /// A single song line used across Home, playlists and the library — Apple Music style:
-/// leading artwork (or an animated equalizer when it's the current track), title/artist,
-/// and a trailing accessory. Double-clicking plays; artist names open their page.
+/// leading artwork, title/artist, and a trailing heart + duration. The current
+/// track is marked by its accent-coloured title. Double-clicking plays; artist
+/// names open their page.
 struct SongRow: View {
-    @EnvironmentObject private var player: PlayerManager
     @EnvironmentObject private var likes: LikeManager
     @EnvironmentObject private var fontManager: FontManager
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let song: Song
     var isCurrent: Bool = false
-    var isPlaying: Bool = false
-    var showArtwork: Bool = true
-    /// Appends the album name to the artist line ("艺人 · 专辑").
-    var showsAlbum: Bool = false
-    /// Reveals a play button + like heart on hover (Home only).
-    var showsHoverActions: Bool = false
-    /// Fires on row double-click. When nil the row is a passive label; when set,
-    /// the row handles the double-click itself.
+    /// Fires on row double-click and on the artwork's play button. When nil the
+    /// row is a passive label.
     var onPlay: (() -> Void)? = nil
 
     @State private var isHovering = false
 
     var body: some View {
-        Group {
-            if let onPlay {
-                row
-                    .contentShape(Rectangle())
-                    .onTapGesture(count: 2, perform: onPlay)
-            } else {
-                row
-                    .contentShape(Rectangle())
-            }
+        HStack(spacing: 12) {
+            artwork
+            titles
+            Spacer(minLength: 8)
+            trailing
         }
-        .onHover { hovering in
-            if reduceMotion {
-                isHovering = hovering
-            } else {
-                withAnimation(.easeOut(duration: 0.15)) { isHovering = hovering }
-            }
-        }
-        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.primary.opacity(isHovering ? 0.06 : 0))
+        )
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) { onPlay?() }
+        .onHover { isHovering = $0 }
     }
 
-    private var row: some View {
-        HStack(spacing: 12) {
-            if showArtwork {
-                Artwork(url: song.coverURL(120), corner: 8)
-                    .frame(width: 48, height: 48)
-                    .overlay {
-                        if isCurrent {
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(.black.opacity(0.35))
-                            NowPlayingBars(animating: isPlaying)
-                                .frame(width: 16, height: 14)
-                                .foregroundStyle(.white)
-                        }
-                    }
+    // MARK: Leading
+
+    private var artwork: some View {
+        Artwork(url: song.coverURL(120), corner: 8)
+            .frame(width: 48, height: 48)
+            .overlay {
+                if !isCurrent {
+                    playButton
+                }
             }
+    }
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(song.name)
-                    .font(fontManager.font(.body, weight: isCurrent ? .semibold : .regular))
-                    .foregroundStyle(isCurrent ? Theme.accent : Color.primary)
-                    .lineLimit(1)
-                subtitle
-                    .font(fontManager.font(.subheadline))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
+    /// Always mounted so hovering never inserts/removes views or re-lays out the row.
+    private var playButton: some View {
+        Button { onPlay?() } label: {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(.black.opacity(0.4))
+                .overlay {
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+        }
+        .buttonStyle(.plain)
+        .opacity(isHovering ? 1 : 0)
+        .allowsHitTesting(isHovering)
+        .help("播放")
+    }
 
-            Spacer(minLength: 8)
+    // MARK: Text
 
-            trailing
+    private var titles: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(song.name)
+                .font(fontManager.font(.body, weight: isCurrent ? .semibold : .regular))
+                .foregroundStyle(isCurrent ? Theme.accent : Color.primary)
+                .lineLimit(1)
+            subtitle
+                .font(fontManager.font(.subheadline))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
         }
     }
 
@@ -91,46 +92,32 @@ struct SongRow: View {
                 }
             }
 
-            if showsAlbum, !song.albumName.isEmpty {
+            if !song.albumName.isEmpty {
                 Text("· \(song.albumName)")
             }
         }
     }
 
-    @ViewBuilder
+    // MARK: Trailing
+
     private var trailing: some View {
-        if showsHoverActions, isHovering {
-            HStack(spacing: 2) {
-                playButton
-                likeButton
-            }
-            .transition(.scale(scale: 0.85, anchor: .trailing).combined(with: .opacity))
-        } else {
+        let liked = likes.isLiked(song.id)
+        return HStack(spacing: 6) {
+            heartButton(liked: liked)
+                .opacity(liked || isHovering ? 1 : 0)
+                .allowsHitTesting(liked || isHovering)
             Text(Format.timeMs(song.durationMs))
                 .font(fontManager.font(.footnote))
+                .monospacedDigit()
                 .foregroundStyle(.tertiary)
-                .transition(.opacity)
         }
     }
 
-    private var playButton: some View {
+    /// Kept in the layout at all times; only its opacity changes on hover, so a
+    /// liked song stays visible and the duration never shifts.
+    private func heartButton(liked: Bool) -> some View {
         Button {
-            onPlay?()
-        } label: {
-            Image(systemName: "play.fill")
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: 26, height: 26)
-                .background(Circle().fill(Theme.accent))
-        }
-        .buttonStyle(PressableScale())
-        .help("播放")
-    }
-
-    private var likeButton: some View {
-        let liked = likes.isLiked(song.id)
-        return Button {
-            withAnimation(.easeOut(duration: 0.2)) { likes.toggle(song) }
+            likes.toggle(song)
         } label: {
             Image(systemName: liked ? "heart.fill" : "heart")
                 .font(.system(size: 15, weight: .semibold))
@@ -141,34 +128,6 @@ struct SongRow: View {
         .buttonStyle(PressableScale())
         .help(liked ? "取消喜欢" : "喜欢")
         .disabled(likes.isUpdating(song.id))
-    }
-}
-
-/// Three little bars that "bounce" to signal the currently playing track.
-struct NowPlayingBars: View {
-    var animating: Bool
-    @State private var phase = false
-
-    var body: some View {
-        HStack(alignment: .bottom, spacing: 2) {
-            bar(0.4)
-            bar(1.0)
-            bar(0.6)
-        }
-        .onAppear { phase = animating }
-        .onChange(of: animating) { _, newValue in phase = newValue }
-    }
-
-    private func bar(_ scale: CGFloat) -> some View {
-        RoundedRectangle(cornerRadius: 1)
-            .frame(width: 3)
-            .scaleEffect(y: phase ? scale : 0.25, anchor: .bottom)
-            .animation(
-                animating
-                    ? .easeInOut(duration: 0.5).repeatForever().delay(Double(scale) * 0.15)
-                    : .default,
-                value: phase
-            )
     }
 }
 
@@ -189,6 +148,7 @@ struct SongRowPlaceholder: View {
             }
             Spacer()
         }
+        .padding(.horizontal, 8)
         .padding(.vertical, 8)
         .redacted(reason: .placeholder)
         .skeletonPulse()

@@ -18,10 +18,33 @@ struct PlaylistDetailView: View {
     @State private var appeared = false
     @State private var isSubscribed = false
     @State private var isSubscribing = false
+    /// Tracks fetched so far; the next page's `offset`.
+    @State private var loadedOffset = 0
+    @State private var canLoadMore = true
+    @State private var isLoadingMore = false
+    @State private var loadMoreFailed = false
+    @State private var loadMoreTask: Task<Void, Never>?
+    @State private var isPreparingPlayAll = false
+
+    private static let pageSize = 200
 
     private var info: Playlist { detail ?? playlist }
 
     var body: some View {
+        ScrollViewReader { proxy in
+            page
+                .overlay(alignment: .bottomTrailing) {
+                    if player.currentSong != nil, !songs.isEmpty {
+                        locateCurrentButton(proxy: proxy)
+                    }
+                }
+        }
+        .navigationTitle(playlist.name)
+        .task(id: playlist.id) { await load() }
+        .onAppear { appeared = true }
+    }
+
+    private var page: some View {
         ScrollView {
             VStack(spacing: 24) {
                 header
@@ -48,9 +71,43 @@ struct PlaylistDetailView: View {
             .padding(.bottom, 16)
         }
         .background(AppBackground())
-        .navigationTitle(playlist.name)
-        .task(id: playlist.id) { await load() }
-        .onAppear { appeared = true }
+    }
+
+    // MARK: Locate current track
+
+    private func locateCurrentButton(proxy: ScrollViewProxy) -> some View {
+        Button {
+            revealCurrent(proxy: proxy)
+        } label: {
+            Image(systemName: "dot.radiowaves.left.and.right")
+                .font(.system(size: 15, weight: .semibold))
+                .frame(width: 40, height: 40)
+                .glassEffect(.regular, in: .circle)
+        }
+        .buttonStyle(.plain)
+        .help("定位到正在播放")
+        .padding(20)
+    }
+
+    /// Pages until the current track is in the list, then scrolls to it. Following
+    /// the queue may not belong to this playlist; then the button does nothing.
+    private func revealCurrent(proxy: ScrollViewProxy) {
+        guard let currentID = player.currentSong?.id else { return }
+        Task {
+            while !songs.contains(where: { $0.id == currentID }), canLoadMore {
+                let before = loadedOffset
+                await loadMore()
+                if loadedOffset == before { break }
+            }
+            guard songs.contains(where: { $0.id == currentID }) else { return }
+            if reduceMotion {
+                proxy.scrollTo(currentID, anchor: .center)
+            } else {
+                withAnimation(.easeInOut(duration: 0.35)) {
+                    proxy.scrollTo(currentID, anchor: .center)
+                }
+            }
+        }
     }
 
     // MARK: Header
@@ -69,7 +126,7 @@ struct PlaylistDetailView: View {
 
     private var statsText: String {
         var parts: [String] = []
-        // Prefer the playlist's own count: the track endpoint caps at 300.
+        // The header count is the playlist's own; the list pages towards it.
         let count = info.trackCount > 0 ? info.trackCount : songs.count
         if count > 0 { parts.append("\(count) 首") }
         if info.playCount > 0 { parts.append("\(Format.playCount(info.playCount)) 次播放") }
@@ -80,15 +137,20 @@ struct PlaylistDetailView: View {
     private var actions: some View {
         HStack(spacing: 12) {
             Button {
-                player.play(songs, startAt: 0)
+                playAll()
             } label: {
-                Label("播放全部", systemImage: "play.fill")
-                    .padding(.horizontal, 6)
+                if isPreparingPlayAll {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Label("播放全部", systemImage: "play.fill")
+                        .padding(.horizontal, 6)
+                }
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
             .tint(Theme.playAction)
-            .disabled(songs.isEmpty)
+            .disabled(songs.isEmpty || isPreparingPlayAll)
 
             if !isOwnPlaylist {
                 Button {
@@ -124,22 +186,42 @@ struct PlaylistDetailView: View {
             InfoState(icon: "music.note.list", title: "这个歌单还没有歌曲")
                 .frame(maxWidth: .infinity)
         } else {
-            // Lazy so a 300-track playlist only keeps the visible rows alive —
-            // a plain VStack would instantiate (and re-layout) every row on scroll.
+            // Lazy + paged: only visible rows are built, and the next page is
+            // fetched when the last loaded row appears, so an 800-track playlist
+            // never downloads or instantiates all of it up front.
             LazyVStack(spacing: 0) {
                 ForEach(Array(songs.enumerated()), id: \.element.id) { index, song in
                     let isCurrent = player.currentSong?.id == song.id
                     SongRow(
                         song: song,
                         isCurrent: isCurrent,
-                        isPlaying: isCurrent && player.isPlaying,
-                        showsAlbum: true,
-                        showsHoverActions: true,
                         onPlay: { player.play(songs, startAt: index) }
                     )
-                    if song.id != songs.last?.id {
-                        Divider().padding(.leading, 60)
+                    .onAppear {
+                        if song.id == songs.last?.id {
+                            Task { await loadMore() }
+                        }
                     }
+
+                    if song.id != songs.last?.id {
+                        Divider().padding(.leading, 68)
+                    }
+                }
+
+                if isLoadingMore {
+                    ProgressView()
+                        .controlSize(.small)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 52)
+                } else if loadMoreFailed {
+                    Button("加载失败，点击重试") {
+                        Task { await loadMore() }
+                    }
+                    .buttonStyle(.plain)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 52)
                 }
             }
         }
@@ -149,7 +231,7 @@ struct PlaylistDetailView: View {
         VStack(spacing: 0) {
             ForEach(0..<6, id: \.self) { _ in
                 SongRowPlaceholder()
-                Divider().padding(.leading, 60)
+                Divider().padding(.leading, 68)
             }
         }
     }
@@ -178,19 +260,82 @@ struct PlaylistDetailView: View {
         isLoading = true
         error = nil
         isSubscribed = playlist.subscribed
+        loadMoreTask?.cancel()
+        loadMoreTask = nil
+        songs = []
+        loadedOffset = 0
+        canLoadMore = true
+        isLoadingMore = false
+        loadMoreFailed = false
 
         async let detailResult = MusicService.playlistDetail(id: playlist.id)
-        async let tracksResult = MusicService.playlistTracks(id: playlist.id)
 
         if let loaded = try? await detailResult {
             detail = loaded
             isSubscribed = loaded.subscribed
         }
         do {
-            songs = try await tracksResult
+            let page = try await MusicService.playlistTracks(
+                id: playlist.id, limit: Self.pageSize, offset: 0)
+            songs = page
+            loadedOffset = page.count
+            canLoadMore = page.count == Self.pageSize
+            loadMoreFailed = false
         } catch {
             self.error = (error as? APIError)?.errorDescription ?? "加载失败"
         }
         isLoading = false
+    }
+
+    // MARK: Pagination
+
+    /// Appends the next page; joins an in-flight page instead of fetching twice.
+    private func loadMore() async {
+        if let inFlight = loadMoreTask {
+            await inFlight.value
+            return
+        }
+        guard error == nil, !isLoading, canLoadMore else { return }
+
+        let playlistID = playlist.id
+        let task = Task { await fetchNextPage(playlistID: playlistID) }
+        loadMoreTask = task
+        await task.value
+        loadMoreTask = nil
+    }
+
+    private func fetchNextPage(playlistID: Int) async {
+        isLoadingMore = true
+        loadMoreFailed = false
+        defer { isLoadingMore = false }
+
+        do {
+            let page = try await MusicService.playlistTracks(
+                id: playlistID, limit: Self.pageSize, offset: loadedOffset)
+            guard playlistID == playlist.id else { return }
+            let known = Set(songs.map(\.id))
+            songs.append(contentsOf: page.filter { !known.contains($0.id) })
+            loadedOffset += page.count
+            canLoadMore = page.count == Self.pageSize
+                && (info.trackCount <= 0 || loadedOffset < info.trackCount)
+        } catch {
+            guard playlistID == playlist.id else { return }
+            loadMoreFailed = true
+        }
+    }
+
+    /// 播放全部 needs the full queue, so finish paging before starting.
+    private func playAll() {
+        guard !songs.isEmpty, !isPreparingPlayAll else { return }
+        isPreparingPlayAll = true
+        Task {
+            while canLoadMore {
+                let before = loadedOffset
+                await loadMore()
+                if loadedOffset == before { break }
+            }
+            isPreparingPlayAll = false
+            player.play(songs, startAt: 0)
+        }
     }
 }

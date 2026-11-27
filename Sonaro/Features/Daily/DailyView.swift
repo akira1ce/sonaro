@@ -26,7 +26,7 @@ struct DailyView: View {
                     skeletonList
                 } else if vm.songs.isEmpty {
                     InfoState(icon: "music.note", title: "暂无推荐",
-                              message: "稍后再来看看，或检查服务器设置")
+                              message: "稍后再来看看，或检查网络连接")
                         .frame(maxWidth: .infinity)
                 } else {
                     songList

@@ -5,5 +5,5 @@ build/
 dist/
 *.dmg
 api-doc.md
-Sonaro/Core/Networking/APIConfig.swift
 CLAUDE.md
+ypm-plugin-netease-main/

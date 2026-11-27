@@ -1,7 +1,7 @@
 > [!IMPORTANT]
-> Sonaro 是个人开发的非官方客户端，与网易云音乐官方无任何关联。
+> Sonaro 是个人开发的非官方音乐客户端，与所接入的音乐服务无隶属或合作关系。
 > 项目不包含任何音乐内容或账号数据，仅供学习与个人使用，请勿用于商业用途。
-> 音乐版权归网易云音乐及版权方所有。
+> 音乐内容及相关版权归各自权利人所有。
 
 <div align="right">
 
@@ -15,9 +15,9 @@
 
 # Sonaro
 
-**聆听你的世界 — 原生 SwiftUI 的 macOS 网易云音乐客户端**
+**聆听你的世界 — 原生 SwiftUI 的 macOS 音乐客户端**
 
-SwiftUI · AVPlayer · NeteaseCloudMusicApiEnhanced 后端
+SwiftUI · AVPlayer · 本机直连
 
 [![Platform](https://img.shields.io/badge/platform-macOS%2026%2B-blue?logo=apple)](#构建与运行)
 [![Swift](https://img.shields.io/badge/Swift-5.0-F05138?logo=swift&logoColor=white)](#构建与运行)
@@ -38,7 +38,7 @@ SwiftUI · AVPlayer · NeteaseCloudMusicApiEnhanced 后端
 
 ## 功能
 
-- 🔐 **扫码登录** — 使用网易云音乐 App 扫码授权；cookie 保存在 Keychain，冷启动先用缓存会话立即渲染，再后台校验，网络波动不会让你掉登录
+- 🔐 **扫码登录** — 使用音乐服务的官方 App 扫码授权；cookie 保存在 Keychain，冷启动先用缓存会话立即渲染，再后台校验，网络波动不会让你掉登录
 - 🏠 **推荐** — 每日推荐歌单、排行榜、精品歌单、热门歌手四个横向歌单区，带骨架屏与整页重试
 - 📅 **每日推荐** — 每天更新的推荐歌曲，封面头部 + 播放全部 + 歌曲列表
 - 🕘 **最近播放** — 播放记录支持「最近一周 / 所有时间」切换
@@ -64,13 +64,7 @@ open Sonaro.xcodeproj
 
 选择 **Sonaro** scheme 和 **My Mac**，⌘R 运行。工程使用 synchronized folder groups，磁盘上新增的源文件会自动进入 target。
 
-> [`APIConfig.swift`](Sonaro/Core/Networking/APIConfig.swift) 不纳入版本控制，方便每个环境保留自己的后端地址。克隆后请从 [`APIConfig.swift.template`](Sonaro/Core/Networking/APIConfig.swift.template) 创建：
->
-> ```bash
-> cp Sonaro/Core/Networking/APIConfig.swift.template Sonaro/Core/Networking/APIConfig.swift
-> ```
->
-> 然后修改 `baseURL` 指向你自己的 NeteaseCloudMusicApiEnhanced 实例。
+无需部署或配置额外服务器，应用在本机完成请求处理并通过 HTTPS 连接音乐服务。
 
 ### 命令行构建与测试
 
@@ -93,17 +87,15 @@ xcodebuild test -scheme Sonaro -destination 'platform=macOS'
 
 脚本构建 Universal Release 应用，并用 `hdiutil` 生成带“应用程序”快捷方式的 DMG（不需要 create-dmg，也不会弹出 Finder 窗口）。应用会用本机的 Apple Development 证书签名（需在 Xcode 中登录与 `DEVELOPMENT_TEAM` 对应的账号），因此重装后钥匙串权限仍然有效、不会每次安装都要求输入登录密码；签名绑定本机，拷贝到其他设备后首次打开需右键 → 打开。找不到签名证书时脚本会直接报错退出，不会退回 ad-hoc 签名。
 
-## 后端与配置
+## 连接与会话
 
-Sonaro 依赖第三方、非官方的 [NeteaseCloudMusicApiEnhanced](https://github.com/neteasecloudmusicapienhanced/api-enhanced) 服务（与网易云音乐官方无关）：
+应用直接连接音乐服务，无需额外服务器或运行环境。
 
-- API 地址是内置常量，位于 [`APIConfig.swift`](Sonaro/Core/Networking/APIConfig.swift)，该文件不纳入版本控制；请从 [`APIConfig.swift.template`](Sonaro/Core/Networking/APIConfig.swift.template) 创建（见[构建与运行](#构建与运行)），修改 `baseURL` 指向自己的实例后重新编译即可；应用内没有服务器设置项。
-- HTTP 明文访问通过 ATS 例外放行（`NSAllowsArbitraryLoads`），换成 HTTPS 实例同样可用。
-- 登录态以 `cookie` 查询参数随请求发送；后端返回 301 表示会话已过期，冷启动校验到失效时会回到扫码页。
-- 本机设备 ID 单独保存在 Keychain，退出账号后仍保留。扫码前的请求只携带设备 ID，登录后的请求合并账号 Cookie 并统一使用同一个 `deviceId`；后端需支持读取 `cookie.deviceId`。
-- 完整接口说明见 [`api-doc.md`](api-doc.md)。
-
-> 登录 cookie 会随请求发送到所配置的后端。默认地址仅供演示，建议使用自己部署的实例并启用 HTTPS，不要连接不可信的服务。
+- 二维码在本机生成，扫码授权后的登录凭据保存在 macOS Keychain。
+- 账号凭据仅用于服务接口请求，不发送至音频 CDN；退出登录只清除本机会话。
+- 本机设备标识单独保存，退出账号后仍保留。
+- 接口适配为非官方实现，可能因服务变更或安全验证而暂时不可用。播放受账号权限、地区与版权限制，不以试听片段代替完整歌曲。
+- 第三方来源与许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 ## 架构
 
@@ -135,13 +127,13 @@ Sonaro/
 
 ## 免责声明
 
-- 本项目为个人学习与技术交流项目，非网易云音乐官方产品，与网易云音乐无任何隶属或合作关系。
-- 项目不提供、不分发任何音乐资源；歌曲、封面、歌词等内容均由用户自行配置的第三方 API 服务返回。
-- 使用本项目需要你自己的网易云音乐账号，请遵守网易云音乐的用户协议；账号及使用风险由使用者自行承担。
-- 本项目的默认后端仅为演示，推荐自行部署 NeteaseCloudMusicApiEnhanced 并通过 HTTPS 访问；第三方服务的可用性、安全性及数据处理不由本项目负责。
+- 本项目为个人学习与技术交流项目，非官方产品，与所接入的音乐服务无隶属或合作关系。
+- 项目不提供、不分发任何音乐资源；歌曲、封面、歌词等内容由所接入的音乐服务提供。
+- 使用账号功能需要你自己的服务账号，请遵守相关服务的用户协议；账号及使用风险由使用者自行承担。
+- 服务可用性及安全验证要求由服务方决定，本项目不保证接口长期兼容。
 - 本项目仅供个人学习研究，不得用于商业用途或任何侵犯版权的行为。
 
 ## 致谢
 
-- [NeteaseCloudMusicApiEnhanced](https://github.com/neteasecloudmusicapienhanced/api-enhanced) — 提供全部数据接口
+- [接口适配参考](THIRD_PARTY_NOTICES.md) — 第三方来源与许可说明
 - 界面与交互参考 Apple Music，仅借鉴设计思路，未使用其任何资源

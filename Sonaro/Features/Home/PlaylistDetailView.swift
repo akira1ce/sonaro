@@ -277,9 +277,9 @@ struct PlaylistDetailView: View {
         do {
             let page = try await MusicService.playlistTracks(
                 id: playlist.id, limit: Self.pageSize, offset: 0)
-            songs = page
-            loadedOffset = page.count
-            canLoadMore = page.count == Self.pageSize
+            songs = page.songs
+            loadedOffset = page.nextOffset
+            canLoadMore = page.hasMore
             loadMoreFailed = false
         } catch {
             self.error = (error as? APIError)?.errorDescription ?? "加载失败"
@@ -314,10 +314,9 @@ struct PlaylistDetailView: View {
                 id: playlistID, limit: Self.pageSize, offset: loadedOffset)
             guard playlistID == playlist.id else { return }
             let known = Set(songs.map(\.id))
-            songs.append(contentsOf: page.filter { !known.contains($0.id) })
-            loadedOffset += page.count
-            canLoadMore = page.count == Self.pageSize
-                && (info.trackCount <= 0 || loadedOffset < info.trackCount)
+            songs.append(contentsOf: page.songs.filter { !known.contains($0.id) })
+            loadedOffset = page.nextOffset
+            canLoadMore = page.hasMore
         } catch {
             guard playlistID == playlist.id else { return }
             loadMoreFailed = true

@@ -1,7 +1,7 @@
 > [!IMPORTANT]
-> Sonaro is an unofficial, independently developed client and is not affiliated with NetEase Cloud Music.
+> Sonaro is an unofficial, independently developed music client with no affiliation or partnership with the services it connects to.
 > The project contains no music content or account data and is intended for learning and personal use only, not for commercial purposes.
-> All music copyrights belong to NetEase Cloud Music and the respective rights holders.
+> Music content and related copyrights belong to their respective rights holders.
 
 <div align="right">
 
@@ -15,9 +15,9 @@
 
 # Sonaro
 
-**Listen to your world — a native SwiftUI NetEase Cloud Music client for macOS**
+**Listen to your world — a native SwiftUI music client for macOS**
 
-SwiftUI · AVPlayer · NeteaseCloudMusicApiEnhanced backend
+SwiftUI · AVPlayer · Direct connection
 
 [![Platform](https://img.shields.io/badge/platform-macOS%2026%2B-blue?logo=apple)](#build--run)
 [![Swift](https://img.shields.io/badge/Swift-5.0-F05138?logo=swift&logoColor=white)](#build--run)
@@ -38,7 +38,7 @@ SwiftUI · AVPlayer · NeteaseCloudMusicApiEnhanced backend
 
 ## Features
 
-- 🔐 **QR code login** — scan with the NetEase Cloud Music app; the cookie is stored in the macOS Keychain. On cold launch the cached session renders immediately while validation runs in the background, so a network hiccup never signs you out
+- 🔐 **QR code login** — scan with the music service’s official app; the cookie is stored in the macOS Keychain. On cold launch the cached session renders immediately while validation runs in the background, so a network hiccup never signs you out
 - 🏠 **Recommendations** — daily playlists, charts, editor-picked playlists, and popular artists across four horizontal shelves, with skeleton loading and page-level retry
 - 📅 **Daily Recommendations** — a fresh set of tracks every day, with a cover header, Play All, and the track list
 - 🕘 **Recently Played** — switch the play history between Last week and All time
@@ -64,13 +64,7 @@ open Sonaro.xcodeproj
 
 Choose the **Sonaro** scheme and **My Mac**, then press ⌘R. The project uses synchronized folder groups, so new source files on disk join the target automatically.
 
-> [`APIConfig.swift`](Sonaro/Core/Networking/APIConfig.swift) is git-ignored so every environment keeps its own backend address. After cloning, create it from [`APIConfig.swift.template`](Sonaro/Core/Networking/APIConfig.swift.template):
->
-> ```bash
-> cp Sonaro/Core/Networking/APIConfig.swift.template Sonaro/Core/Networking/APIConfig.swift
-> ```
->
-> Then set `baseURL` to your NeteaseCloudMusicApiEnhanced instance.
+No additional server setup is required. Requests are prepared locally and sent to the music service over HTTPS.
 
 ### Command-line build and tests
 
@@ -93,17 +87,15 @@ xcodebuild test -scheme Sonaro -destination 'platform=macOS'
 
 Builds a universal Release app and packages it into a DMG with an Applications shortcut using `hdiutil` — no create-dmg and no Finder automation. The app is signed with the local Apple Development identity (requires an Xcode account matching `DEVELOPMENT_TEAM`), so Keychain permissions survive reinstalls instead of prompting for your login password each time. The signature is machine-bound: on another Mac, right-click the icon and choose **Open** on first launch. If no signing identity is available the script fails instead of falling back to an ad-hoc signature.
 
-## Backend & Configuration
+## Connection & Session
 
-Sonaro relies on a third-party, unofficial [NeteaseCloudMusicApiEnhanced](https://github.com/neteasecloudmusicapienhanced/api-enhanced) service (not affiliated with NetEase Cloud Music):
+The app connects directly to the music service without an additional server or runtime.
 
-- The API address is a built-in constant in [`APIConfig.swift`](Sonaro/Core/Networking/APIConfig.swift), which is git-ignored. Create it from [`APIConfig.swift.template`](Sonaro/Core/Networking/APIConfig.swift.template) (see [Build & Run](#build--run)), change `baseURL` to your own instance, and rebuild; there is no in-app server setting.
-- Plain HTTP is allowed through an ATS exception (`NSAllowsArbitraryLoads`); HTTPS instances work as well.
-- The login cookie is sent as a query parameter with each request. A 301 response means the session has expired; if that happens during cold-launch validation, the app returns to the QR login screen.
-- A local device ID is stored in a separate Keychain item and survives logout. Anonymous QR requests carry only this identity; authenticated requests merge the account cookie with the same `deviceId`. The backend must honor `cookie.deviceId`.
-- See [`api-doc.md`](api-doc.md) for the full API reference.
-
-> The login cookie is sent to whichever backend you configure. The default address is for demonstration only — use your own deployment over HTTPS and never connect to an untrusted server.
+- QR images are generated locally; credentials obtained through QR authorization are stored in macOS Keychain.
+- Account credentials are used only for service API requests and are never sent to audio CDNs. Signing out clears only the local session.
+- A separate local device identity survives logout.
+- The integration is unofficial and may become unavailable after service changes or verification requirements. Account, regional and licensing restrictions apply; previews are not treated as full tracks.
+- See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for third-party sources and licensing.
 
 ## Architecture
 
@@ -135,13 +127,13 @@ Sonaro/
 
 ## Disclaimer
 
-- This is a personal learning and technical exchange project, not an official NetEase Cloud Music product, and has no affiliation or partnership with NetEase Cloud Music.
-- The project does not provide or distribute any music resources. Songs, covers, lyrics, and other content are returned by the third-party API service configured by the user.
-- You need your own NetEase Cloud Music account. Please comply with NetEase Cloud Music's user agreement; any account or usage risk is borne by the user.
-- The default backend is for demonstration only. Self-hosting NeteaseCloudMusicApiEnhanced over HTTPS is recommended; the availability, security, and data handling of third-party services are not the responsibility of this project.
+- This is a personal learning and technical exchange project, an unofficial product with no affiliation or partnership with the services it connects to.
+- The project does not provide or distribute any music resources. Songs, covers, lyrics, and other content are provided by the connected music service.
+- Account features require your own service account. Please comply with the service’s user agreement; any account or usage risk is borne by the user.
+- Availability and verification requirements are controlled by the service provider; continued compatibility is not guaranteed.
 - This project is for personal learning and research only and must not be used commercially or for any copyright-infringing activity.
 
 ## Credits
 
-- [NeteaseCloudMusicApiEnhanced](https://github.com/neteasecloudmusicapienhanced/api-enhanced) — all data endpoints
+- [Integration references](THIRD_PARTY_NOTICES.md) — third-party sources and licensing
 - UI and interactions are inspired by Apple Music; only design ideas were referenced, no assets were used.

@@ -1,102 +1,111 @@
 import Foundation
 
-/// Thin async wrapper over URLSession that knows how to talk to the
-/// MusicApiEnhanced backend: base URL, cookie injection, and cache
-/// busting.
-final class APIClient {
+/// Native EAPI requests; account cookies are sent only to the NetEase API origin.
+final class APIClient: NSObject, URLSessionTaskDelegate {
     static let shared = APIClient()
+    private var session: URLSession!
+    private let deviceID: () throws -> String
 
-    private let session: URLSession
-
-    private init() {
-        let cfg = URLSessionConfiguration.default
-        cfg.requestCachePolicy = .reloadIgnoringLocalCacheData
-        cfg.timeoutIntervalForRequest = 20
-        cfg.waitsForConnectivity = true
-        // Identity and account cookies are explicitly composed as query items.
-        // Do not let an ambient URLSession cookie leak into anonymous QR calls.
-        cfg.httpShouldSetCookies = false
-        cfg.httpCookieAcceptPolicy = .never
-        cfg.httpCookieStorage = nil
-        session = URLSession(configuration: cfg)
+    init(session: URLSession? = nil,
+         deviceID: @escaping () throws -> String = { try DeviceIdentityStore.shared.deviceID() }) {
+        self.deviceID = deviceID
+        super.init()
+        if let session {
+            self.session = session
+        } else {
+            let cfg = URLSessionConfiguration.ephemeral
+            cfg.requestCachePolicy = .reloadIgnoringLocalCacheData
+            cfg.timeoutIntervalForRequest = 20
+            cfg.timeoutIntervalForResource = 30
+            cfg.httpShouldSetCookies = false
+            cfg.httpCookieAcceptPolicy = .never
+            cfg.httpCookieStorage = nil
+            self.session = URLSession(configuration: cfg, delegate: self, delegateQueue: nil)
+        }
     }
 
-    // MARK: Requests
+    // A redirect must never forward account credentials to another origin.
+    func urlSession(_ session: URLSession, task: URLSessionTask,
+                    willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
+        completionHandler(nil)
+    }
 
-    /// Fetches raw data for an endpoint.
-    /// - Parameters:
-    ///   - path: leading-slash path, e.g. `/recommend/songs`.
-    ///   - query: extra query items.
-    ///   - authenticated: attach the account cookie; device identity is always included.
-    ///   - freshness: append a timestamp so the backend's 2-minute cache is bypassed
-    ///                (required for login polling and status checks).
-    func data(_ path: String,
-              query: [String: String] = [:],
-              authenticated: Bool = true,
-              freshness: Bool = false) async throws -> Data {
-        guard var components = URLComponents(string: APIConfig.baseURL + path) else {
+    func response(_ path: String, query: [String: Any] = [:], authenticated: Bool = true,
+                  raw: Bool = false) async throws -> (data: Data, cookie: String) {
+        let accountCookie = authenticated ? SessionStore.shared.cookie : nil
+        let jar = SessionCookie.fields(accountCookie)
+        let identity: String
+        do { identity = try deviceID() } catch { throw APIError.deviceIdentity(error) }
+        let header = jar.merging([
+            "os": "pc", "appver": "3.1.11", "deviceId": identity, "versioncode": "140",
+            "osver": "Microsoft-Windows-10-Professional-build-19045-64bit",
+            "channel": "netease", "resolution": "1920x1080", "__csrf": jar["__csrf"] ?? "",
+            "requestId": "\(Int(Date().timeIntervalSince1970 * 1000))_\(Int.random(in: 0..<10000))"
+        ]) { _, device in device }
+        var payload = query
+        payload["header"] = header
+        let encoded: Data
+        do { encoded = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys, .withoutEscapingSlashes]) }
+        catch { throw APIError.decoding(error) }
+        let params = try EAPI.encrypt(path: path, json: String(decoding: encoded, as: UTF8.self))
+        guard let url = URL(string: APIConfig.baseURL + "/eapi/" + String(path.dropFirst(5))) else {
             throw APIError.invalidURL
         }
-        var items = components.queryItems ?? []
-        for (k, v) in query.sorted(by: { $0.key < $1.key }) where k != "cookie" {
-            items.append(URLQueryItem(name: k, value: v))
-        }
-        let accountCookie = authenticated ? (query["cookie"] ?? SessionStore.shared.cookie) : nil
-        do {
-            let cookie = try DeviceIdentityStore.shared.cookie(accountCookie: accountCookie)
-            items.removeAll { $0.name == "cookie" }
-            items.append(URLQueryItem(name: "cookie", value: cookie))
-        } catch {
-            throw APIError.deviceIdentity(error)
-        }
-        if freshness {
-            items.append(URLQueryItem(name: "timestamp", value: String(Int(Date().timeIntervalSince1970 * 1000))))
-        }
-        components.queryItems = items.isEmpty ? nil : items
-
-        guard let url = components.url else { throw APIError.invalidURL }
-
         var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.setValue("https://music.163.com/", forHTTPHeaderField: "Referer")
+        request.setValue("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+        request.setValue(header.keys.sorted().map { "\($0)=\(header[$0]!)" }.joined(separator: "; "), forHTTPHeaderField: "Cookie")
+        request.httpBody = Data("params=\(params)".utf8)
+        let data: Data
+        let response: URLResponse
+        do { (data, response) = try await session.data(for: request) }
+        catch { throw APIError.transport(error) }
+        try Task.checkCancellation()
+        guard let http = response as? HTTPURLResponse else { throw APIError.invalidURL }
+        let result: [String: Any]
         do {
-            let (data, response) = try await session.data(for: request)
-            if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-                if http.statusCode == 301 { throw APIError.sessionExpired }
-                throw APIError.http(http.statusCode, message: Self.errorMessage(from: data))
+            guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw APIError.api(code: 0, message: "网易云返回了无法识别的响应")
             }
-            return data
-        } catch let error as APIError {
-            throw error
+            result = object
         } catch {
-            throw APIError.transport(error)
-        }
-    }
-
-    /// Fetches and decodes a JSON response.
-    func get<T: Decodable>(_ path: String,
-                           query: [String: String] = [:],
-                           authenticated: Bool = true,
-                           freshness: Bool = false,
-                           as type: T.Type = T.self) async throws -> T {
-        let data = try await self.data(path, query: query, authenticated: authenticated, freshness: freshness)
-        do {
-            return try JSONDecoder().decode(T.self, from: data)
-        } catch {
+            if !(200..<300).contains(http.statusCode) { throw APIError.http(http.statusCode, message: nil) }
             throw APIError.decoding(error)
         }
+        let message = (result["message"] ?? result["msg"]) as? String
+        guard (200..<300).contains(http.statusCode) else {
+            if http.statusCode == 401 { throw APIError.sessionExpired }
+            throw APIError.http(http.statusCode, message: message)
+        }
+        let code = (result["code"] as? NSNumber)?.intValue ?? 200
+        if !raw && code != 200 {
+            if [301, 302, 401].contains(code) { throw APIError.sessionExpired }
+            if [-462, 405].contains(code) {
+                throw APIError.api(code: code, message: "网易云要求安全验证，请先在官方客户端完成验证后重试")
+            }
+            throw APIError.api(code: code, message: message)
+        }
+        var cookies = jar
+        let fields = http.allHeaderFields.reduce(into: [String: String]()) { result, pair in
+            result[String(describing: pair.key)] = String(describing: pair.value)
+        }
+        for cookie in HTTPCookie.cookies(withResponseHeaderFields: fields, for: url) {
+            cookies[cookie.name] = cookie.value
+        }
+        return (data, cookies.keys.sorted().map { "\($0)=\(cookies[$0]!)" }.joined(separator: "; "))
     }
 
-    /// Non-2xx bodies still carry a human-readable reason (e.g. the upstream
-    /// risk-control 400), which is worth surfacing instead of a bare status.
-    private struct ErrorBody: Decodable {
-        let message: String?
-        let msg: String?
+    func data(_ path: String, query: [String: Any] = [:], authenticated: Bool = true) async throws -> Data {
+        try await response(path, query: query, authenticated: authenticated).data
     }
 
-    private static func errorMessage(from data: Data) -> String? {
-        guard let body = try? JSONDecoder().decode(ErrorBody.self, from: data) else { return nil }
-        return body.message ?? body.msg
+    func get<T: Decodable>(_ path: String, query: [String: Any] = [:], authenticated: Bool = true,
+                           as type: T.Type = T.self) async throws -> T {
+        let data = try await self.data(path, query: query, authenticated: authenticated)
+        do { return try JSONDecoder().decode(T.self, from: data) }
+        catch { throw APIError.decoding(error) }
     }
 }

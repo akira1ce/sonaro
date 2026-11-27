@@ -24,7 +24,7 @@ struct RecommendView: View {
                     .padding(.top, 40)
             } else if !vm.isLoading, !hasContent {
                 InfoState(icon: "music.note.list", title: "暂无推荐",
-                          message: "稍后再来看看，或检查服务器设置")
+                          message: "稍后再来看看，或检查网络连接")
                     .frame(maxWidth: .infinity)
                     .padding(.top, 40)
             } else {

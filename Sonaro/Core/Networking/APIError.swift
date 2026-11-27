@@ -4,7 +4,7 @@ enum APIError: LocalizedError {
     case invalidURL
     case transport(Error)
     case deviceIdentity(Error)
-    /// The backend answers `301 {"code":301,"msg":"需要登录"}` when the supplied
+    /// NetEase answers `301 {"code":301,"msg":"需要登录"}` when the supplied
     /// cookie is invalid or expired — it is not a redirect.
     case sessionExpired
     case http(Int, message: String?)

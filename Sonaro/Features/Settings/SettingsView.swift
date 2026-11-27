@@ -8,7 +8,6 @@ struct SettingsView: View {
     @State private var fontName: String = ""
 
     @State private var coverCacheBytes: Int?
-    @State private var lyricsCacheBytes: Int?
     @State private var isClearingCache = false
     @State private var showClearCacheConfirm = false
 
@@ -118,7 +117,6 @@ struct SettingsView: View {
     private var cacheSection: some View {
         Section {
             LabeledContent("封面缓存", value: cacheSizeText(coverCacheBytes))
-            LabeledContent("歌词缓存", value: cacheSizeText(lyricsCacheBytes))
 
             Button(role: .destructive) {
                 showClearCacheConfirm = true
@@ -134,7 +132,7 @@ struct SettingsView: View {
         } header: {
             Text("缓存")
         } footer: {
-            Text("清除后，封面和歌词会在下次使用时重新下载。")
+            Text("封面缓存在磁盘，歌词仅在本次运行中保留。清除后会在下次使用时重新获取。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -142,11 +140,7 @@ struct SettingsView: View {
     }
 
     private func refreshCacheStats() async {
-        async let covers = ImageLoader.shared.cacheUsage()
-        async let lyrics = LyricsCache.shared.diskUsage()
-        let (coverBytes, lyricBytes) = await (covers, lyrics)
-        coverCacheBytes = coverBytes
-        lyricsCacheBytes = lyricBytes
+        coverCacheBytes = await ImageLoader.shared.cacheUsage()
     }
 
     private func clearCache() async {

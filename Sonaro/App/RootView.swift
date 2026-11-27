@@ -23,6 +23,9 @@ struct RootView: View {
         }
         .animation(.easeInOut(duration: 0.35), value: auth.state)
         .preferredColorScheme(appearance.colorScheme)
+        .onChange(of: auth.state) { _, state in
+            if state == .loggedOut { likes.clear() }
+        }
         .task {
             #if DEBUG
             if ProcessInfo.processInfo.environment["SONARO_UIDEMO"] == "1" {

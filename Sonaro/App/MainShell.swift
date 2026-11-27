@@ -42,8 +42,9 @@ struct MainShell: View {
                 #if DEBUG
                 if ProcessInfo.processInfo.environment["SONARO_UINP"] == "1" { showNowPlaying = true }
                 #endif
-                await likes.refresh()
                 guard let uid = auth.profile?.userId else { return }
+                await likes.refresh(uid: uid)
+                guard !Task.isCancelled, auth.profile?.userId == uid else { return }
                 await sidebar.load(uid: uid)
             }
             .onReceive(NotificationCenter.default.publisher(for: .playlistSubscriptionsChanged)) { _ in

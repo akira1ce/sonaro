@@ -51,7 +51,7 @@ SwiftUI · AVPlayer · Direct connection
 - 📝 **Synced lyrics** — line-by-line highlighting and auto-follow; click a line to seek. Manual scrolling pauses following, and the view returns to the current line after 2.5 seconds; edges fade out
 - ⌨️ **System integration** — lock screen, Control Center, and media keys (play, pause, previous, next, seek); Space toggles playback
 - 🎨 **Appearance & fonts** — light, dark, or system; custom font family and four size presets with a live preview in Settings
-- 🗄️ **Cache** — covers in a disk-backed `URLCache` (about 256 MB), lyrics persisted per song ID; Settings shows usage and offers one-click clearing
+- 🗄️ **Cache** — covers in a disk-backed `URLCache` (about 256 MB), lyrics reused in memory per song ID during the current run; Settings shows cover disk usage and offers one-click clearing
 - 🧪 **Unit tests** — pure-logic coverage for LRC parsing, playback mode cycling, tolerant model decoding, formatting, and search paging
 
 ## Build & Run

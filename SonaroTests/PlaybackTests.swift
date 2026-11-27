@@ -187,6 +187,37 @@ final class PlaybackTests: XCTestCase {
         XCTAssertFalse(likes.isUpdating(target.id))
     }
 
+    @MainActor
+    func testSwitchingLikeAccountClearsOldIDsEvenWhenNewLoadFails() async {
+        let likes = LikeManager(loadLikes: { uid in
+            if uid == 1 { return [10] }
+            throw APIError.http(503, message: nil)
+        })
+        await likes.refresh(uid: 1)
+        XCTAssertTrue(likes.isLiked(10))
+        await likes.refresh(uid: 2)
+        XCTAssertTrue(likes.likedIDs.isEmpty)
+    }
+
+    @MainActor
+    func testOldLikeListResponseCannotOverwriteNewAccount() async {
+        let request = FirstLoadGate()
+        let likes = LikeManager(loadLikes: { uid in
+            if uid == 1 {
+                await request.wait()
+                return [10]
+            }
+            return [20]
+        })
+        let oldLoad = Task { await likes.refresh(uid: 1) }
+        while !(await request.started) { await Task.yield() }
+        await likes.refresh(uid: 2)
+        XCTAssertEqual(likes.likedIDs, [20])
+        await request.release()
+        await oldLoad.value
+        XCTAssertEqual(likes.likedIDs, [20])
+    }
+
     // MARK: Retry after a failed load
 
     @MainActor

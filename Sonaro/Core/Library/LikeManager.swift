@@ -6,31 +6,39 @@ import Foundation
 @MainActor
 final class LikeManager: ObservableObject {
 
+    typealias LikeLoader = @Sendable (_ uid: Int) async throws -> [Int]
     typealias LikeUpdater = @Sendable (_ id: Int, _ like: Bool) async throws -> Bool
 
     /// IDs of songs in the user's "我喜欢的音乐" list.
     @Published private(set) var likedIDs: Set<Int> = []
     @Published private(set) var updatingIDs: Set<Int> = []
 
+    private let loadLikes: LikeLoader
+    private var userID: Int?
     private let updateLike: LikeUpdater
     private var sessionGeneration = 0
 
-    init(updateLike: @escaping LikeUpdater = { id, like in
+    init(loadLikes: @escaping LikeLoader = { try await MusicService.likedSongIDs(uid: $0) },
+         updateLike: @escaping LikeUpdater = { id, like in
         try await MusicService.setLiked(id: id, like: like)
     }) {
+        self.loadLikes = loadLikes
         self.updateLike = updateLike
     }
 
     func isLiked(_ songID: Int) -> Bool { likedIDs.contains(songID) }
     func isUpdating(_ songID: Int) -> Bool { updatingIDs.contains(songID) }
 
-    /// Reloads the liked-song IDs for the signed-in user. Reads the uid from the
-    /// cached profile (available on cold launch), so callers don't thread it in.
-    func refresh() async {
-        guard let uid = SessionStore.shared.cachedProfile?.userId, uid != 0 else { return }
+    /// A new account starts empty, even if its first request fails.
+    func refresh(uid: Int) async {
+        guard uid > 0, !Task.isCancelled else { return }
+        if userID != uid {
+            clear()
+            userID = uid
+        }
         let generation = sessionGeneration
-        if let ids = try? await MusicService.likedSongIDs(uid: uid) {
-            guard sessionGeneration == generation else { return }
+        if let ids = try? await loadLikes(uid) {
+            guard !Task.isCancelled, sessionGeneration == generation else { return }
             likedIDs = Set(ids)
         }
     }
@@ -45,6 +53,7 @@ final class LikeManager: ObservableObject {
         if wasLiked { likedIDs.remove(id) } else { likedIDs.insert(id) }
 
         Task {
+            guard sessionGeneration == generation else { return }
             let ok = (try? await updateLike(id, !wasLiked)) ?? false
             guard sessionGeneration == generation else { return }
             if !ok {
@@ -56,6 +65,7 @@ final class LikeManager: ObservableObject {
 
     func clear() {
         sessionGeneration += 1
+        userID = nil
         likedIDs = []
         updatingIDs = []
     }
